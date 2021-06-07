@@ -1,0 +1,29 @@
+<RCC>
+  <qresource prefix="icons">
+    <file>paint.png</file>
+    <file>Theme.png</file>
+    <file>arrow__darkgreen_right_200.png</file>
+    <file>btn_ok_200.png</file>
+    <file>checking.png</file>
+    <file>clear-factors.png</file>
+    <file>main.png</file>
+    <file>clear-links.png</file>
+    <file>control.png</file>
+    <file>edit.png</file>
+    <file>exit.png</file>
+    <file>graph.png</file>
+    <file>graphmagnifier_118081.png</file>
+    <file>help.png</file>
+    <file>imitation.png</file>
+    <file>laz_add_200.png</file>
+    <file>laz_delete_200.png</file>
+    <file>laz_refresh_200.png</file>
+    <file>new.png</file>
+    <file>open.png</file>
+    <file>prediction.png</file>
+    <file>process.png</file>
+    <file>save.png</file>
+    <file>sort.png</file>
+    <file>table.png</file>
+  </qresource>
+</RCC>
