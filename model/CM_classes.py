@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+"""Contains main cognitive model classes"""
 
 from abc import ABC, abstractmethod
 from random import normalvariate, choice, random
@@ -87,7 +88,7 @@ class QuantitativeFactor(AbstractFactor):
             self.mean = (self.max_value + self.min_value) / 2
         else:
             self.mean = mean
-        if standard_deviation is None or standard_deviation < (self.max_value - self.min_value) / 6:
+        if standard_deviation is None or standard_deviation > (self.max_value - self.min_value) / 3:
             self.standard_deviation = (self.max_value - self.min_value) / 6
         else:
             self.standard_deviation = standard_deviation

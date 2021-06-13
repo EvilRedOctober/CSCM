@@ -1,0 +1,7 @@
+PyQt5~=5.15.4
+pandas~=1.2.4
+matplotlib~=3.4.2
+networkx~=2.5.1
+numpy~=1.20.3
+dbf~=0.99.1
+setuptools~=56.2.0

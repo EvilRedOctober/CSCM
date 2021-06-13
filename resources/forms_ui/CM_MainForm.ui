@@ -375,6 +375,10 @@
    </property>
   </action>
   <action name="action_Qt">
+   <property name="icon">
+    <iconset resource="../icons/forms_resources.qrc">
+     <normaloff>:/icons/Qt.png</normaloff>:/icons/Qt.png</iconset>
+   </property>
    <property name="text">
     <string>О Qt</string>
    </property>

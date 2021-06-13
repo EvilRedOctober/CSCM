@@ -52,7 +52,7 @@ class GraphWindow(AbstractLogic, Ui_GraphForm):
             else:
                 self.node_colors.append('#c8ffc8')
                 self.node_borders_colors.append('g')
-        self.positive_edges = list(filter(lambda x: x[2] > 0, edges_list))
+        self.positive_edges = list(filter(lambda x: x[2] >= 0, edges_list))
         self.negative_edges = list(filter(lambda x: x[2] < 0, edges_list))
 
         # Change the graph
@@ -79,7 +79,7 @@ class GraphWindow(AbstractLogic, Ui_GraphForm):
                                    edgecolors=self.node_borders_colors, linewidths=1.5)
             nx.draw_networkx_labels(self.graph, pos, font_size=14)
             # Then positive links
-            width = [edge[2]/20 for edge in self.positive_edges]
+            width = [edge[2]/20 + 1 for edge in self.positive_edges]
             nx.draw_networkx_edges(self.graph, pos, edgelist=self.positive_edges, width=width, edge_color='r',
                                    arrowsize=20)
             # And negative links

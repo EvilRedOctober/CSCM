@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
+"""Contains main functions to work with cognitive model"""
+
 from random import normalvariate
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -50,9 +52,9 @@ def quality_2_number(index: int) -> int:
 
 def get_regression_params(matrix: np.ndarray) -> (np.ndarray, np.ndarray, np.ndarray):
     """
-    Takes cognitive model in matrix (n*n), returns regression params
-    :param matrix: matrix of links strengths
-    :return: matrix of regression parameters (n*n), vector of dispersions (n), and special vector - alpha.
+    Takes cognitive model in matrix (n*n), returns linear regressions params, dispersions and alpha vector.
+    :param matrix: matrix of links strengths (n*n)
+    :return: matrix of regression parameters (n*n), vector of dispersions (n), and special vector - alpha (n).
 
     If alpha is 1, then all normal, else model is not correct: some links strengths are overrated.
     Vector alpha will decrease some too high links.
@@ -87,7 +89,6 @@ def get_regression_params(matrix: np.ndarray) -> (np.ndarray, np.ndarray, np.nda
 
     # First step - estimate parameters, when not all correlations is known
     regression, dispersions, alpha = estimate_params(matrix, correlations)
-    print('b', regression)
     # Making imitation data to check correlations
     data = pd.DataFrame(np.random.uniform(-3.25, 3.25, (5000, n)))
     for j in range(1000):
@@ -111,6 +112,7 @@ def normalize(value: any, factor: AbstractFactor) -> float:
         return (value - (factor.max_value + factor.min_value) / 2) / (factor.max_value - factor.min_value) * 6.5
     elif factor.scale == 1:
         factor: OrdinalFactor
+        value = round(value)
         cum_sum = [0] + factor.cum_sum
         return ((cum_sum[value - 1] + cum_sum[value]) / 2 - 0.5) * 6.5
     else:
@@ -125,7 +127,8 @@ def reverse_normalize(value: float, factor: AbstractFactor) -> float:
     value = min(max(value, -3.25), 3.25)
     if factor.scale == 0:
         factor: QuantitativeFactor
-        return value / 6.5 * (factor.max_value - factor.min_value) + (factor.max_value + factor.min_value) / 2
+        ans = value / 6.5 * (factor.max_value - factor.min_value) + (factor.max_value + factor.min_value) / 2
+        return round(ans, 3)
     elif factor.scale == 1:
         factor: OrdinalFactor
         p = value / 6.5 + 0.5
@@ -153,20 +156,21 @@ def get_graph_visiting_order(regression: np.ndarray) -> list:
     if not len(current_wave):
         current_wave.append(np.random.randint(0, n))
     k = 0
-    while current_wave and k < 100:
+    threshold = min(1000, n * n / 2)
+    while current_wave and k < threshold:
         next_wave = set()
         for i in current_wave:
             next_wave |= set(regression[i, :].nonzero()[0])
         order += current_wave
         current_wave = list(next_wave)
-        k += 1
+        k += len(next_wave)
     order += current_wave
     return order
 
 
 def dict_state_2_data_frame(state: dict[str, any], factors: tuple[AbstractFactor]) -> Optional[pd.DataFrame]:
     """Creates pandas data frame from data dictionary using factors.
-    If there is wrong data, return None
+    If there is wrong data, raising error
 
     :param state: dict of values of factors (key is factor name, values could be int, float and str types)
     :param factors: tuple of factors
@@ -175,7 +179,7 @@ def dict_state_2_data_frame(state: dict[str, any], factors: tuple[AbstractFactor
     for f in factors:
         if f.name in state:
             if not f.is_in_interval(state[f.name]):
-                return None
+                raise ValueError('Value %s not in intervals' % state[f.name])
             state[f.name] = [state[f.name]]
         else:
             state[f.name] = [f.generate_value()]
@@ -184,7 +188,7 @@ def dict_state_2_data_frame(state: dict[str, any], factors: tuple[AbstractFactor
 
 
 def make_imitation_data(regression: np.ndarray, dispersions: np.ndarray, factors: tuple[AbstractFactor],
-                        M: int, visiting_order: list, fixed_controls: bool = False, fixed_observables: bool = False,
+                        visiting_order: list, M: int, fixed_controls: bool = False, fixed_observables: bool = False,
                         state: Optional[dict[str, any]] = None) -> pd.DataFrame:
     """
     Method to create imitation data, when observation data is not available.
@@ -196,7 +200,7 @@ def make_imitation_data(regression: np.ndarray, dispersions: np.ndarray, factors
     :param regression: numpy array (n*n) of regression parameters
     :param dispersions: numpy vector (n) of dispersions
     :param factors: tuple of factors
-    :param M: needed volume of data (number of records) between 10 and 9999
+    :param M: needed volume of data (number of records) between 10 and 10000
     :param visiting_order: list of factors indexes in tuple, order of factors to estimate their values
     :param fixed_controls: True if controlled factors should not change, else False
     :param fixed_observables: True if observable factors should not change, else False
@@ -204,7 +208,7 @@ def make_imitation_data(regression: np.ndarray, dispersions: np.ndarray, factors
     :return: returns pandas data frame of imitation data, where columns are factors names
     """
     deviations = (dispersions ** 0.5)
-    M = min(max(M, 10), 9999)
+    M = min(max(M, 10), 10000)
     n = len(factors)
     if state:
         state = dict_state_2_data_frame(state, factors)
@@ -229,21 +233,18 @@ def estimate_transient_response(regression: np.ndarray, factors: tuple[AbstractF
                                 state0: dict[str, any], state1: dict[str, any]) -> pd.DataFrame:
     """
     Method to estimate transient response of system.
-    Warning! Working ONLY with quantitative factors!
+    Warning! Doesn't work correctly with nominals factors!
     Difference with imitation data in lack of variance and every record in frame is a step of process (not final state).
     If there is no inputs then process starts with random factor.
 
     :param regression: numpy array (n*n) of regressions parameters
     :param factors: tuple of factors
-    :param state0: dictionary in form "factor_name: value", state of system at step 0
-    :param state1: dictionary in form "factor_name: value", state of system at step 1
+    :param state0: dictionary in form {factor_name: value}, state of system at step 0
+    :param state1: dictionary in form {factor_name: value}, state of system at step 1
     :return: pandas data frame of transient response
     """
     n = len(factors)
     current_wave = []
-    # Check for scales other than quantitative
-    if [f.scale for f in factors if f.scale > 3]:
-        raise ValueError('Only quantitative factors available!')
     # First state
     data = dict_state_2_data_frame(state0, factors)
     data = data.append(dict_state_2_data_frame(state1, factors), ignore_index=True)
@@ -275,13 +276,57 @@ def estimate_transient_response(regression: np.ndarray, factors: tuple[AbstractF
             break
         current_wave = next_wave
         j += 1
-    # for f in factors:
-        # data[f.name] = data[f.name].apply(lambda x: reverse_normalize(x, f))
+    for f in factors:
+        data[f.name] = data[f.name].apply(lambda x: reverse_normalize(x, f))
+    return data
+
+
+def estimate_transient_response_normalized(regression: np.ndarray, factors: tuple[AbstractFactor],
+                                           state: dict[str, any]) -> pd.DataFrame:
+    """
+    The same as estimate_transient_response, but without reverse normalizing at the end,
+    and normalizing at the beginning
+
+    :param regression: numpy array (n*n) of regressions parameters
+    :param factors: tuple of factors
+    :param state: dictionary in form {factor_name: value}, state of system at step 0
+    :return: pandas data frame of transient response
+    """
+    n = len(factors)
+    current_wave = []
+    # First state
+    data = pd.DataFrame({f.name: [state[f.name]] for f in factors})
+    # Starts with inputs
+    for i in range(n):
+        if not regression[:, i].any():
+            current_wave.append(i)
+    # Else with random factor
+    if not len(current_wave):
+        current_wave.append(np.random.randint(0, n))
+    j = 0
+    # End when there is no more factors to go, or too long process with cycles
+    while current_wave and j < 100:
+        next_wave = set()
+        # Identify the next factors to visit
+        for i in current_wave:
+            next_wave |= set(regression[i, :].nonzero()[0])
+        # Take the last state
+        last_state = pd.Series(data.iloc[-1], copy=True)
+        # And calculating next wave
+        for k in next_wave:
+            last_state[factors[k].name] = np.dot(last_state, regression[:, k]).sum()
+        data = data.append(last_state, ignore_index=True)
+        # If the process diverges in time or there is no changes in waves then break
+        E = (abs(data.iloc[-1] - data.iloc[-2])).max()
+        if last_state.max() > 3.25 or last_state.min() < -3.25 or E < 0.01:
+            break
+        current_wave = next_wave
+        j += 1
     return data
 
 
 def data_2_dbf(data: pd.DataFrame, factors: tuple[AbstractFactor], file_path: str):
-    """Takes data frame, tuple of factors and saves data to selected file."""
+    """Takes data frame, tuple of factors and saves data to selected data base file."""
     M = data.shape[0]
     # Creating columns and data types
     fields = ''
@@ -321,14 +366,14 @@ def estimate_prediction(data: pd.DataFrame, factors: tuple[AbstractFactor], p: f
     ans = []
     for f in factors:
         if f.scale == 0:
-            left = data[f.name].quantile(q=((1-p)/2))
-            right = data[f.name].quantile(q=((1+p)/2))
-            mean = data[f.name].mean()
+            left = round(data[f.name].quantile(q=((1-p)/2)), 3)
+            right = round(data[f.name].quantile(q=((1+p)/2)), 3)
+            mean = round(data[f.name].mean(), 3)
             ans.append((left, mean, right))
         elif f.scale == 1:
-            left = data[f.name].quantile(q=((1-p)/2))
-            right = data[f.name].quantile(q=((1+p)/2))
-            median = data[f.name].median()
+            left = round(data[f.name].quantile(q=((1-p)/2)))
+            right = round(data[f.name].quantile(q=((1+p)/2)))
+            median = round(data[f.name].median())
             ans.append((left, median, right))
         elif f.scale == 2:
             count = data[f.name].value_counts().to_dict()
@@ -336,51 +381,95 @@ def estimate_prediction(data: pd.DataFrame, factors: tuple[AbstractFactor], p: f
     return ans
 
 
-if __name__ == '__main__':
-    matrix1 = np.array([[0, 0, 0, 0.6, 0, 0, 0, 0],
-                        [0, 0, 0, -0.5, 0.6, 0, 0, 0],
-                        [0, 0, 0, 0, -0.8, 0, 0, 0],
-                        [0, 0, 0, 0, 0, -0.5, 0, -0.8],
-                        [0, 0, 0, 0, 0, 0, 0.7, -0.7],
-                        [0, 0, 0, 0, 0, 0, 0, 0],
-                        [0, 0, 0, 0, 0, 0, 0, 0],
-                        [0, 0, 0, 0, 0, 0, 0, 0]])
-    b1, S1, a1 = get_regression_params(matrix1)
-    print('b\n', b1)
-    print('R\n', S1)
-    print('a\n', a1)
+def compare_values(obtained_value: any, desired_value: any, factor: AbstractFactor) -> float:
+    """Takes obtained and desired values of targeted factor, returns criterion value"""
+    if factor.scale == 0:
+        factor: QuantitativeFactor
+        ans = (obtained_value - desired_value) / (factor.max_value - factor.min_value)
+        return round(ans, 3)
+    elif factor.scale == 1:
+        factor: OrdinalFactor
+        ans = (obtained_value - desired_value) / (factor.max_value - 1)
+        return round(ans, 3)
+    else:
+        factor: NominalFactor
+        return obtained_value != desired_value
 
-    import json
-    from model.CM_classes import CognitiveModel
-    json_cm = json.load(open("../examples/NIR.json", 'r'))
-    cm2 = CognitiveModel('', '')
-    cm2.load_json(json_cm)
-    matrix2 = cm2.get_matrix_of_links()
-    b2, S2, a2 = get_regression_params(matrix2)
-    order2 = get_graph_visiting_order(b2)
-    print(order2)
-    print('b\n', b2)
-    print('R\n', S2)
-    print('a\n', a2)
-    facts2 = cm2.get_factors()
-    data2 = make_imitation_data(b2, S2, facts2, 1000, order2)
-    pred = estimate_prediction(data2, facts2)
-    print(*pred, sep='\n')
-    data2.to_csv("../examples/NIR_data.csv", index=False)
-    data2.to_json("../examples/NIR_data.json", orient='split', index=False, indent=4)
-    data2.to_excel("../examples/NIR_data.xlsx", index=False)
-    data_2_dbf(data2, facts2, "../examples/NIR_data.dbf")
+
+def criterion(factors: tuple[AbstractFactor], weights: dict[str, float], targets: dict[str, any],
+              data: Union[pd.DataFrame, pd.Series]) -> float:
     """
-    state20 = {f.name: reverse_normalize(0, f) for f in facts2}
-    state21 = state20.copy()
-    state21[facts2[0].name] = reverse_normalize(1, facts2[0])
-    print(state20, state21)
-    data2 = estimate_transient_response(b2, facts2, state20, state21)
-    print(data2)
-    Reg = np.array(data2.corr().fillna(0))
-    print('res\n', (abs(Reg[matrix2 != 0] - matrix2[matrix2 != 0])).mean())
-    print(data2.iloc[-1].tolist())
-    data2.plot()
-    from matplotlib import pyplot as plt
-    plt.show()
+    Takes tuple of factors, weights of targeted factors, dict of required values of targeted factors.
+    Calculating special float number - the criterion of proximity values of targeted factors from data to the
+    desired values. If criterion is close to 0, then data is close to desired. The larger the criterion,
+    the greater the difference between the obtained and desired values.
+
+    :param factors: tuple of factors in model
+    :param weights: dictionary {factor_name: weight}, where 'weight' is float number, that shows priority of factor
+    :param targets: dictionary {factor_name: target}, where 'target' is desired value of targeted factor
+    :param data: pandas data frame of observation (imitation) data
+    :return: float positive number, shows how values of targeted factors from data is close to desired values
     """
+    E = 0
+    """Only for targeted factors"""
+    if isinstance(data, pd.DataFrame):
+        for f in factors:
+            if f.role == 3:
+                E += abs(data[f.name].apply(lambda x: compare_values(x, targets[f.name], f)) ** 2).mean() \
+                     * weights[f.name]
+    else:
+        for f in factors:
+            if f.role == 3:
+                E += compare_values(data[f.name], targets[f.name], f) ** 2 * weights[f.name]
+    return round(E * (3.25 ** 2), 3)
+
+
+def gradient_method(regression: np.ndarray, factors: tuple[AbstractFactor], weights: dict[str, float],
+                    targets: dict[str, any], current_state: dict[str, any], alpha: float = 1,
+                    beta: float = 0.25) -> dict[str, any]:
+    """
+    Gradient descent method for evaluating the values of control actions,
+    allowing to achieve the desired values of controlled factors.
+
+    :param regression: numpy array (n*n) of regressions parameters
+    :param factors: tuple of factors in model
+    :param weights: dictionary {factor_name: weight}, where 'weight' is float number, that shows priority of factor
+    :param targets: dictionary {factor_name: target}, where 'target' is desired value of targeted factor
+    :param current_state: dictionary in form {factor_name: value}, state of system at step 0
+    :param alpha: float positive, the rate of algorithm
+    :param beta: float positive or zero, the inertia of algorithm
+    :return: dictionary {factor_name: result}, where 'result' is recommended value of factors
+    """
+    controlled = [f for f in factors if f.role == 0]
+    targeted = [f for f in factors if f.role == 3]
+    targets = targets.copy()
+    # Estimate the influence of inputs on targeted factors
+    influence_on_targeted = {}
+    for u in controlled:
+        # All zeros except for one controlled input, where the impact is sent
+        clear_state = {f.name: 0.0 for f in factors}
+        clear_state[u.name] = 1.0
+        response = estimate_transient_response_normalized(regression, factors, clear_state).iloc[-1]
+        influence_on_targeted[u.name] = response
+    for f in factors:
+        current_state[f.name] = normalize(current_state[f.name], f)
+        if f.name in targets:
+            targets[f.name] = normalize(targets[f.name], f)
+    current_response = estimate_transient_response_normalized(regression, factors, current_state).iloc[-1]
+    E = sum([(targets[key] - current_response[key]) ** 2 for key in targets.keys()])
+    k = 0
+    previous_state = current_state.copy()
+    while k < 1000 and E > 0.01:
+        for u in controlled:
+            current_state[u.name] += (current_state[u.name] - previous_state[u.name]) * beta
+            for y in targeted:
+                next_value = current_state[u.name] - (current_response[y.name] - targets[y.name]) \
+                             * influence_on_targeted[u.name][y.name] * weights[y.name] * alpha
+                current_state[u.name] = min(max(next_value, -3.25), 3.25)
+        current_response = estimate_transient_response_normalized(regression, factors, current_state).iloc[-1]
+        E = sum([(targets[key] - current_response[key]) ** 2 for key in targets.keys()])
+        previous_state = current_state.copy()
+        k += 1
+    for f in factors:
+        current_state[f.name] = reverse_normalize(current_state[f.name], f)
+    return current_state

@@ -1,5 +1,6 @@
 <RCC>
   <qresource prefix="icons">
+    <file>Qt.png</file>
     <file>paint.png</file>
     <file>Theme.png</file>
     <file>arrow__darkgreen_right_200.png</file>

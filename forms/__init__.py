@@ -1,3 +1,3 @@
-"""A package with forms"""
+"""A package with forms UI"""
 
 pass
