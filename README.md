@@ -33,6 +33,6 @@ resources/               # Файлы используемых ресурсов
 resources/forms_ui/      # ui файлы с формами Qt
 resources/icons/         # Иконки и картинки
 help.chm                 # Файл помощи с подробным руководством пользователя 
-CM_main.py               # Основной файл
+CM_main.pyw              # Основной файл
 forms_resources_rc.py    # Скомпилированный файл ресурсов
 ```
