@@ -20,19 +20,6 @@ from logic.CM_PredictionLogic import PredictionWindow
 from logic.CM_ControlLogic import ControlWindow
 
 
-class Test_Thread(QtCore.QThread):
-    testSignal = QtCore.pyqtSignal()
-
-    def __init__(self, tab):
-        QtCore.QThread.__init__(self)
-        self.tab = tab
-
-    def run(self):
-        while True:
-            self.msleep(2000)
-            # self.testSignal.emit()
-
-
 class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     def __init__(self):
         # Setup
@@ -220,7 +207,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         if file:
             cm_json = self.cognitive_model.encode_json()
             try:
-                # json.dump(cm_json, open(file, 'w'), indent=4, ensure_ascii=False)
                 json.dump(cm_json, open(file, 'w'), indent=4, ensure_ascii=True)
             except OSError:
                 QtWidgets.QMessageBox.critical(self,

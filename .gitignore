@@ -9,6 +9,7 @@ __pycache__/
 CSCM WIN/
 
 # Distribution / packaging
+.idea/
 .Python
 build/
 develop-eggs/
