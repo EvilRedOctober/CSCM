@@ -54,11 +54,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.palette_dark.setColor(QPalette.HighlightedText, Qt.white)
         self.is_origin_palette = True
 
-        # Debug
-        self.test_thread = Test_Thread(None)
-        self.test_thread.testSignal.connect(sum)
-        self.test_thread.start()
-
         # Connecting slots to action signals
         self.action_edit.triggered.connect(self.create_edit_window)
         self.action_table.triggered.connect(self.create_table_window)
